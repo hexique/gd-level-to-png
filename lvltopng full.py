@@ -4,6 +4,7 @@ from random import randint, choice, shuffle
 from math import sin, cos, radians, pi
 from pyperclip import copy as copy_to_clipboard, paste
 from PIL import Image
+import json
 
 def save(pixels_2d, path):
     height = len(pixels_2d)
@@ -16,13 +17,6 @@ def save(pixels_2d, path):
     img.putdata(flat_pixels)
     img.save(path)
 
-def load(path):
-    img = Image.open(path)
-    pixels = list(img.getdata())
-    width, height = img.size
-    
-    pixels_2d = [pixels[i*width:(i+1)*width] for i in range(height)]
-    return pixels_2d
 
 def toJSON(level_string):
     result = []
@@ -50,6 +44,10 @@ def fromJSON(array):
 with open('input.txt', 'r', encoding='utf-8') as f:
     level = toJSON(f.read())
 
+with open('colormap.json', 'r', encoding='utf-8') as f:
+    colormap = json.load(f)
+
+
 coords = {}
 raw_colors = {}
 
@@ -66,9 +64,9 @@ for obj in level:
         coords[(x, y)] = [obj]
 
     if x > max_x:
-        max_x = (int(obj[2]) - 15) // 30
+        max_x = int((float(obj[2]) - 15) // 30)
     if y > max_y:
-        max_y = (int(obj[3]) - 15) // 30
+        max_y = int((float(obj[3]) - 15) // 30)
 
     if obj[1] == '29':
         raw_colors[x] = {'color': (int(obj[7]), int(obj[8]), int(obj[9]), 255), 'duration': float(obj[10]) / 10, 'channel': 'bg'}
@@ -94,7 +92,7 @@ for y in range(max_y+1):
 
 print('placing pixels')
 
-for xy, objects in list(coords.items()):
+for pos, objects in list(coords.items()):
     final_obj_count = {}
     final_color_count = {}
     for obj in objects:
@@ -116,19 +114,22 @@ for xy, objects in list(coords.items()):
         final_obj_count = dict(sorted(final_obj_count.items(), key=lambda item: item[1], reverse=True))
         final_color_count = dict(sorted(final_color_count.items(), key=lambda item: item[1], reverse=True))
 
-        try:
-            obj_image = load(f'assets/files/Original/GJ_GameSheet-uhd/{list(final_obj_count.values())[-1]}.png')
 
-            final_pixel = obj_image[len(obj_image) // 2][len(obj_image[0]) // 2]
-        except Exception as e:
-            final_pixel = (255, 255, 255, 255)
-            pass
+        if obj[1] in colormap:
+            final_pixel = []
+            for channelid, channel in list(enumerate(colormap[obj[1]]))[:3]:
+                difference = colors[pos[0]][channelid] - channel
+                final_pixel.append(round(channel + difference * (255 - colormap[obj[1]][3]) / 255))
+
+
+        else:
+            final_pixel = colors[pos[0]]
 
         # v = 10 blocks / sec
         # x = x0 + vt
         
-        result[-xy[1]-1][xy[0]] = final_pixel
+        result[-pos[1]-1][pos[0]] = final_pixel
 
 print(f'saving image {len(result[0])}x{len(result)}')
-save(result, 'jumper-1.2.png')
+save(result, 'jumper-1.3.png')
 print(f'{Fore.GREEN}done')
